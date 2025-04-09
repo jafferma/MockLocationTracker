@@ -2,6 +2,7 @@ import os
 import base64
 import io
 import json
+import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -9,6 +10,13 @@ from utils.image_processor import add_geotag_to_image
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from models import db, Image
+
+# Configure logging for better debugging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
@@ -44,18 +52,20 @@ def index():
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
+    logger.info("Processing upload request")
+    
     # Check if the post request has the file part
     if 'file' not in request.files:
-        app.logger.error("Upload failed: No file part in request")
+        logger.error("Upload failed: No file part in request")
         return jsonify({'error': 'No file part'}), 400
         
     file = request.files['file']
     if file.filename == '':
-        app.logger.error("Upload failed: Empty filename")
+        logger.error("Upload failed: Empty filename")
         return jsonify({'error': 'No selected file'}), 400
         
     if not allowed_file(file.filename):
-        app.logger.error(f"Upload failed: File type not allowed for {file.filename}")
+        logger.error(f"Upload failed: File type not allowed for {file.filename}")
         return jsonify({'error': 'File type not allowed'}), 400
     
     # Get location data
@@ -63,71 +73,76 @@ def upload_file():
     lng = request.form.get('lng')
     location_name = request.form.get('location_name', 'Unknown location')
     
-    app.logger.info(f"Location data received: lat={lat}, lng={lng}, name={location_name}")
+    logger.info(f"Location data received: lat={lat}, lng={lng}, name={location_name}")
     
     if not lat or not lng:
-        app.logger.error("Upload failed: Missing location data")
+        logger.error("Upload failed: Missing location data")
         return jsonify({'error': 'No location data provided'}), 400
     
     try:
         lat = float(lat)
         lng = float(lng)
     except ValueError:
-        app.logger.error(f"Upload failed: Invalid location data format - lat={lat}, lng={lng}")
+        logger.error(f"Upload failed: Invalid location data format - lat={lat}, lng={lng}")
         return jsonify({'error': 'Invalid location data'}), 400
     
     # Ensure upload directory exists with proper permissions
     upload_dir = os.path.abspath(app.config['UPLOAD_FOLDER'])
     os.makedirs(upload_dir, exist_ok=True)
-    app.logger.info(f"Using upload directory: {upload_dir}")
+    logger.info(f"Using upload directory: {upload_dir}")
     
-    # Save the file temporarily with better error handling
+    # Save the file with better error handling
     try:
         filename = secure_filename(file.filename)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         unique_filename = f"{timestamp}_{filename}"
         file_path = os.path.join(upload_dir, unique_filename)
-        app.logger.info(f"Saving file to: {file_path}")
+        logger.info(f"Saving file to: {file_path}")
         
         # Save the file
         file.save(file_path)
         
         # Verify file was saved properly
         if not os.path.exists(file_path):
-            app.logger.error(f"Upload failed: File not found after saving to {file_path}")
+            logger.error(f"Upload failed: File not found after saving to {file_path}")
             return jsonify({'error': 'Failed to save uploaded file (file not found)'}), 500
             
-        if os.path.getsize(file_path) == 0:
-            app.logger.error(f"Upload failed: File saved with zero size at {file_path}")
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            logger.error(f"Upload failed: File saved with zero size at {file_path}")
             os.remove(file_path)  # Clean up empty file
             return jsonify({'error': 'Failed to save uploaded file (zero size)'}), 500
             
-        app.logger.info(f"File saved successfully: {file_path}, size: {os.path.getsize(file_path)} bytes")
+        logger.info(f"File saved successfully: {file_path}, size: {file_size} bytes")
     except Exception as e:
-        app.logger.error(f"Upload failed: Error saving file - {str(e)}")
+        logger.error(f"Upload failed: Error saving file - {str(e)}")
         return jsonify({'error': f'Error saving file: {str(e)}'}), 500
     
-    # Add geotag to the image
+    # Process the image and add location data
     try:
-        app.logger.info(f"Adding geotag to image: {file_path} at lat={lat}, lng={lng}")
+        logger.info(f"Adding location data to image: {file_path} at lat={lat}, lng={lng}")
+        
+        # Use our simplified approach to add location data
         result = add_geotag_to_image(file_path, lat, lng, location_name)
         
         if not result['success']:
-            app.logger.error(f"Geotagging failed: {result['message']}")
-            # Clean up file if geotagging fails
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            logger.error(f"Location tagging failed: {result['message']}")
+            # Keep the file even if tagging fails, as it might be useful for debugging
             return jsonify({'error': result['message']}), 500
             
-        app.logger.info("Geotagging successful")
+        logger.info(f"Location data added successfully: {result.get('sidecar_file', 'No sidecar file')}")
         
-        # Read file as base64 for display
+        # Use the geotagged version if it exists, otherwise use the original
+        geotagged_path = f"{os.path.splitext(file_path)[0]}_geotagged{os.path.splitext(file_path)[1]}"
+        display_path = geotagged_path if os.path.exists(geotagged_path) else file_path
+        
+        # Read the file as base64 for display
         try:
-            with open(file_path, 'rb') as img_file:
+            with open(display_path, 'rb') as img_file:
                 base64_data = base64.b64encode(img_file.read()).decode('utf-8')
-            app.logger.info(f"File read successfully for base64 encoding: {len(base64_data)} characters")
+            logger.info(f"File read successfully for base64 encoding: {len(base64_data)} chars")
         except Exception as e:
-            app.logger.error(f"Failed to read file for base64 encoding: {str(e)}")
+            logger.error(f"Failed to read file for base64 encoding: {str(e)}")
             # Continue without base64 data if reading fails
             base64_data = None
         
@@ -140,32 +155,34 @@ def upload_file():
                 lng=lng,
                 location_name=location_name,
                 timestamp=timestamp,
-                path=file_path,
+                path=display_path,  # Use the display path (with geotagged text)
                 base64=base64_data
             )
             
             # Save to database
             db.session.add(new_image)
             db.session.commit()
-            app.logger.info(f"Image saved to database with ID: {new_image.id}")
+            logger.info(f"Image saved to database with ID: {new_image.id}")
             
+            # Return success with additional information
             return jsonify({
                 'success': True,
                 'image_id': new_image.id,
-                'message': 'Image uploaded and geotagged successfully'
+                'message': 'Image uploaded and location data added successfully',
+                'location': {
+                    'lat': lat,
+                    'lng': lng,
+                    'name': location_name
+                }
             })
         except Exception as e:
-            app.logger.error(f"Database error: {str(e)}")
-            # Clean up file if database save fails
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            logger.error(f"Database error: {str(e)}")
+            # Keep files for debugging
             return jsonify({'error': f'Error saving to database: {str(e)}'}), 500
     
     except Exception as e:
-        app.logger.error(f"Unexpected error in upload process: {str(e)}")
-        # Clean up file if processing fails
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        logger.error(f"Unexpected error in upload process: {str(e)}")
+        # Keep files for debugging
         return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 @app.route('/api/images', methods=['GET'])

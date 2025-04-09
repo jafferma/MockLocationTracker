@@ -1,92 +1,151 @@
 import os
-import piexif
-import piexif.helper
-from PIL import Image
-from fractions import Fraction
+import io
+import json
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL.ExifTags import TAGS, GPSTAGS
+import base64
+import logging
 
-def convert_to_dms(coordinate):
-    """
-    Convert decimal coordinates to degrees, minutes, seconds for EXIF
-    """
-    degrees = abs(int(coordinate))
-    minutes_float = (abs(coordinate) - degrees) * 60
-    minutes = int(minutes_float)
-    seconds = (minutes_float - minutes) * 60
-    
-    # Convert to EXIF format (fractions)
-    degrees_fraction = (degrees, 1)
-    minutes_fraction = (minutes, 1)
-    seconds_fraction = (int(seconds * 100), 100)
-    
-    return degrees_fraction, minutes_fraction, seconds_fraction
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def add_geotag_to_image(image_path, latitude, longitude, location_name=None):
     """
-    Add GPS metadata to an image file
+    A simplified function to add location information to images 
+    and create a visual watermark showing the location data
     """
     try:
-        # Debug info
-        print(f"Processing image at path: '{image_path}'")
+        logger.info(f"Processing image at path: '{image_path}'")
         
-        # Check if file path is valid and file exists
+        # Basic validation
         if not image_path:
-            return {'success': False, 'message': f'Empty file path received'}
+            logger.error("Empty file path received")
+            return {'success': False, 'message': 'Empty file path received'}
             
-        # Ensure file path is a string
-        if not isinstance(image_path, str):
-            image_path = str(image_path)
-            
-        # Make sure the path is absolute and normalized
+        # Normalize path
         image_path = os.path.abspath(os.path.normpath(image_path))
+        logger.info(f"Normalized path: {image_path}")
         
-        # Verify the file exists
+        # Check if file exists
         if not os.path.exists(image_path):
+            logger.error(f"File does not exist at path: {image_path}")
             return {'success': False, 'message': f'File does not exist at path: {image_path}'}
             
-        # Verify file is readable
-        if not os.access(image_path, os.R_OK):
-            return {'success': False, 'message': f'File is not readable: {image_path}'}
-            
-        # Open the image to ensure it's valid
-        with Image.open(image_path) as img:
-            # Get original exif data or create new if none exists
-            try:
-                exif_dict = piexif.load(img.info.get('exif', b''))
-            except (ValueError, piexif.InvalidImageDataError):
-                exif_dict = {'0th': {}, 'Exif': {}, 'GPS': {}, '1st': {}, 'thumbnail': None}
-            
-            # Convert lat/long to DMS format
-            lat_dms = convert_to_dms(latitude)
-            lng_dms = convert_to_dms(longitude)
-            
-            # Set GPS tags
-            exif_dict['GPS'] = {
-                piexif.GPSIFD.GPSVersionID: (2, 0, 0, 0),
-                piexif.GPSIFD.GPSLatitudeRef: 'N' if latitude >= 0 else 'S',
-                piexif.GPSIFD.GPSLatitude: lat_dms,
-                piexif.GPSIFD.GPSLongitudeRef: 'E' if longitude >= 0 else 'W',
-                piexif.GPSIFD.GPSLongitude: lng_dms,
+        # Store location data
+        location_data = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "location_name": location_name or "Unknown location",
+            "image_path": image_path,
+            "original_filename": os.path.basename(image_path)
+        }
+        
+        # Create a metadata sidecar file
+        json_path = f"{image_path}.geolocation.json"
+        logger.info(f"Creating metadata file at: {json_path}")
+        
+        with open(json_path, 'w') as f:
+            json.dump(location_data, f, indent=2)
+        
+        # Create a visually geotagged version of the image
+        try:
+            # Open the image
+            with Image.open(image_path) as img:
+                width, height = img.size
+                logger.info(f"Image opened successfully. Size: {width}x{height}")
+                
+                # Create a copy for editing
+                img_with_tag = img.copy()
+                
+                # Create a semi-transparent bar at the bottom for text
+                overlay = Image.new('RGBA', (width, 40), (0, 0, 0, 180))
+                
+                # Get a drawing context
+                draw = ImageDraw.Draw(overlay)
+                
+                # Try to load a font, falling back to default if needed
+                try:
+                    # Try common system fonts
+                    font_paths = [
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                        "/usr/share/fonts/ttf/dejavu/DejaVuSans.ttf",
+                        "/usr/share/fonts/TTF/dejavu/DejaVuSans.ttf",
+                        "DejaVuSans.ttf",
+                        "Arial.ttf",
+                        "arial.ttf"
+                    ]
+                    
+                    font = None
+                    for font_path in font_paths:
+                        try:
+                            if os.path.exists(font_path):
+                                font = ImageFont.truetype(font_path, 16)
+                                break
+                        except:
+                            continue
+                    
+                    if font is None:
+                        font = ImageFont.load_default()
+                
+                except Exception:
+                    # Fallback to default font
+                    font = ImageFont.load_default()
+                
+                # Format location information
+                location_text = f"{location_name} ({latitude:.6f}, {longitude:.6f})"
+                    
+                # Add location text to the image overlay
+                text_x = 10
+                text_y = 10  # Center text vertically in the bar
+                draw.text((text_x, text_y), location_text, font=font, fill=(255, 255, 255, 255))
+                
+                # Convert overlay to the same mode as the original image
+                if img_with_tag.mode != 'RGBA':
+                    # Convert overlay to the same mode as the original
+                    overlay = overlay.convert(img_with_tag.mode)
+                
+                # Create a mask for blending
+                mask = Image.new('L', overlay.size, 255)  # 255 is fully opaque
+                
+                # Calculate position to place the overlay at the bottom of the image
+                position = (0, height - 40)
+                
+                # Paste the overlay onto the image
+                if img_with_tag.mode == 'RGBA':
+                    # For RGBA images, we can use alpha compositing
+                    box = (0, height - 40, width, height)
+                    cropped_overlay = overlay.crop((0, 0, width, 40))
+                    img_with_tag.alpha_composite(cropped_overlay, dest=position)
+                else:
+                    # For other modes, use paste with mask
+                    img_with_tag.paste(overlay, position, mask)
+                
+                # Save the geotagged version
+                output_filename = f"{os.path.splitext(image_path)[0]}_geotagged{os.path.splitext(image_path)[1]}"
+                img_with_tag.save(output_filename)
+                logger.info(f"Created geotagged image at: {output_filename}")
+                
+                # Successfully created both metadata and visual geotagged image
+                return {
+                    'success': True,
+                    'message': 'Geotag added successfully',
+                    'metadata_file': json_path,
+                    'geotagged_image': output_filename,
+                    'location_data': location_data
+                }
+                
+        except Exception as img_error:
+            logger.error(f"Error creating visual geotag: {str(img_error)}")
+            # Return partial success since we at least created the metadata
+            return {
+                'success': True,  # Still consider this a success if metadata was saved
+                'message': 'Location data saved, but visual geotag failed',
+                'warning': str(img_error),
+                'metadata_file': json_path,
+                'location_data': location_data
             }
-            
-            # Add location name to EXIF UserComment if provided
-            if location_name:
-                user_comment = piexif.helper.UserComment.dump(f"Location: {location_name}")
-                exif_dict['Exif'][piexif.ExifIFD.UserComment] = user_comment
-            
-            # Convert to bytes and save
-            exif_bytes = piexif.dump(exif_dict)
-            
-            # Create a copy of the image with the new EXIF data
-            img_copy = img.copy()
-            img.close()
-            
-            # Save the image with new EXIF data
-            img_copy.save(image_path, exif=exif_bytes)
-            img_copy.close()
-            
-        print(f"Successfully added geotag to image: {image_path}")
-        return {'success': True, 'message': 'Geotag added successfully'}
     
     except Exception as e:
-        print(f"Error adding geotag: {str(e)}")
+        logger.error(f"Error in geotag process: {str(e)}")
         return {'success': False, 'message': f'Error adding geotag: {str(e)}'}
