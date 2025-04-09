@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedLocation = null;
     let currentFile = null;
     let gallery = [];
+    let locationHistory = [];
     
     // DOM elements
     const mapElement = document.getElementById('map');
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalCoordinates = document.getElementById('modal-coordinates');
     const modalDate = document.getElementById('modal-date');
     const modalMapEl = document.getElementById('modal-map');
+    const locationHistoryEl = document.getElementById('location-history');
     
     // ========== Initialize Map ==========
     function initMap() {
@@ -377,6 +379,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Save location button (if exists)
+    const saveLocationBtn = document.getElementById('save-location-btn');
+    if (saveLocationBtn) {
+        saveLocationBtn.addEventListener('click', function() {
+            saveCurrentLocation();
+        });
+    }
+    
+    // Save favorite location button (if exists)
+    const saveFavoriteBtn = document.getElementById('save-favorite-btn');
+    if (saveFavoriteBtn) {
+        saveFavoriteBtn.addEventListener('click', function() {
+            saveCurrentLocation(true);
+        });
+    };
+    
     // File input change
     fileInput.addEventListener('change', function() {
         if (this.files && this.files[0]) {
@@ -424,10 +442,247 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // ========== Location History Functions ==========
+    // Load location history
+    function loadLocationHistory() {
+        fetch('/api/locations')
+            .then(response => response.json())
+            .then(data => {
+                locationHistory = data.locations;
+                renderLocationHistory();
+            })
+            .catch(error => {
+                console.error('Error loading location history:', error);
+                if (locationHistoryEl) {
+                    locationHistoryEl.innerHTML = `
+                        <div class="empty-history">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <p>Error loading location history</p>
+                        </div>
+                    `;
+                }
+            });
+    }
+    
+    // Render location history
+    function renderLocationHistory() {
+        if (!locationHistoryEl) return;
+        
+        if (!locationHistory || locationHistory.length === 0) {
+            locationHistoryEl.innerHTML = `
+                <div class="empty-history">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <p>No location history yet</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let historyHTML = '<div class="history-list">';
+        
+        // Show only the top 10 most recent/used locations
+        const locationsToShow = locationHistory.slice(0, 10);
+        
+        locationsToShow.forEach(location => {
+            // Format the date
+            const lastUsed = new Date(location.last_used);
+            const formattedDate = lastUsed.toLocaleDateString();
+            
+            // Truncate long location names
+            const displayName = location.location_name.length > 30 
+                ? location.location_name.substring(0, 30) + '...' 
+                : location.location_name;
+            
+            // Star icon for favorites
+            const starIcon = location.is_favorite 
+                ? '<i class="fas fa-star favorite"></i>' 
+                : '<i class="far fa-star"></i>';
+            
+            historyHTML += `
+                <div class="history-item" data-id="${location.id}" data-lat="${location.lat}" data-lng="${location.lng}" data-name="${location.location_name}">
+                    <div class="history-item-content">
+                        <div class="history-location">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>${displayName}</span>
+                        </div>
+                        <div class="history-meta">
+                            <span class="history-use-count" title="Used ${location.use_count} times">
+                                <i class="fas fa-redo"></i> ${location.use_count}
+                            </span>
+                            <span class="history-favorite" title="Toggle favorite">
+                                ${starIcon}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="history-coordinates">
+                        ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}
+                    </div>
+                    <div class="history-actions">
+                        <button class="use-location-btn" title="Use this location">Use</button>
+                        <button class="delete-location-btn" title="Remove from history">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        historyHTML += '</div>';
+        locationHistoryEl.innerHTML = historyHTML;
+        
+        // Add event listeners to history items
+        document.querySelectorAll('.history-item').forEach(item => {
+            // Use location button
+            const useBtn = item.querySelector('.use-location-btn');
+            if (useBtn) {
+                useBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const lat = parseFloat(item.getAttribute('data-lat'));
+                    const lng = parseFloat(item.getAttribute('data-lng'));
+                    const name = item.getAttribute('data-name');
+                    
+                    // Update map and selection
+                    map.setView([lat, lng], 13);
+                    selectLocation(lat, lng, name);
+                    
+                    // Update location use count
+                    const locationId = item.getAttribute('data-id');
+                    updateLocationUseCount(locationId);
+                });
+            }
+            
+            // Delete location button
+            const deleteBtn = item.querySelector('.delete-location-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const locationId = item.getAttribute('data-id');
+                    deleteLocation(locationId);
+                });
+            }
+            
+            // Toggle favorite
+            const favoriteBtn = item.querySelector('.history-favorite');
+            if (favoriteBtn) {
+                favoriteBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const locationId = item.getAttribute('data-id');
+                    const location = locationHistory.find(loc => loc.id == locationId);
+                    if (location) {
+                        toggleFavoriteLocation(locationId, !location.is_favorite);
+                    }
+                });
+            }
+        });
+    }
+    
+    // Update location use count
+    function updateLocationUseCount(locationId) {
+        fetch(`/api/locations/${locationId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})  // Empty body to just increment use count
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload location history
+                loadLocationHistory();
+            } else {
+                console.error('Error updating location:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error updating location:', error);
+        });
+    }
+    
+    // Delete location from history
+    function deleteLocation(locationId) {
+        fetch(`/api/locations/${locationId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload location history
+                loadLocationHistory();
+            } else {
+                console.error('Error deleting location:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting location:', error);
+        });
+    }
+    
+    // Toggle favorite status
+    function toggleFavoriteLocation(locationId, isFavorite) {
+        fetch(`/api/locations/${locationId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                is_favorite: isFavorite
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload location history
+                loadLocationHistory();
+            } else {
+                console.error('Error updating favorite status:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error updating favorite status:', error);
+        });
+    }
+    
+    // Add current location to history (or update if exists)
+    function saveCurrentLocation(isFavorite = false) {
+        if (!selectedLocation) return;
+        
+        fetch('/api/locations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                lat: selectedLocation.lat,
+                lng: selectedLocation.lng,
+                location_name: selectedLocation.name,
+                is_favorite: isFavorite
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload location history
+                loadLocationHistory();
+                showUploadStatus('Location saved to history', 'success');
+            } else {
+                console.error('Error saving location:', data.error);
+                showUploadStatus('Error saving location', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving location:', error);
+            showUploadStatus('Error saving location', 'error');
+        });
+    }
+    
     // ========== Initialization ==========
     // Initialize the map
     initMap();
     
     // Load gallery images
     loadGalleryImages();
+    
+    // Load location history
+    loadLocationHistory();
 });

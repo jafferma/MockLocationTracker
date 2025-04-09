@@ -29,6 +29,10 @@
                         <span>Lat: </span><span id="lat-display">--</span>
                         <span>Lng: </span><span id="lng-display">--</span>
                     </div>
+                    <div class="location-actions">
+                        <button id="save-location-btn" title="Save to history"><i class="fas fa-save"></i> Save</button>
+                        <button id="save-favorite-btn" title="Save as favorite"><i class="fas fa-star"></i> Favorite</button>
+                    </div>
                 </div>
             </div>
             
@@ -52,6 +56,16 @@
                 
                 <button id="upload-btn" disabled>Add Location & Upload</button>
                 <div id="upload-status"></div>
+            </div>
+        </div>
+        
+        <div class="history-section">
+            <h2>Location History</h2>
+            <div class="location-history" id="location-history">
+                <div class="empty-history">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <p>No location history yet</p>
+                </div>
             </div>
         </div>
         

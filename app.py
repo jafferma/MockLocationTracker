@@ -9,7 +9,8 @@ from datetime import datetime
 from utils.image_processor import add_geotag_to_image
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from models import db, Image
+from models import db, Image, LocationHistory
+from sqlalchemy import desc, func
 
 # Configure logging for better debugging
 logging.basicConfig(
@@ -161,6 +162,32 @@ def upload_file():
             
             # Save to database
             db.session.add(new_image)
+            
+            # Add/update location history
+            try:
+                # Check if this location is already in history
+                location = LocationHistory.query.filter_by(lat=lat, lng=lng).first()
+                
+                if location:
+                    # Update existing location
+                    location.location_name = location_name
+                    location.use_count += 1
+                    location.last_used = datetime.utcnow()
+                else:
+                    # Add new location to history
+                    new_location = LocationHistory(
+                        lat=lat,
+                        lng=lng,
+                        location_name=location_name
+                    )
+                    db.session.add(new_location)
+                    
+                logger.info(f"Updated location history for {location_name}")
+            except Exception as loc_error:
+                logger.error(f"Error updating location history: {str(loc_error)}")
+                # Continue even if location history update fails
+            
+            # Commit all database changes
             db.session.commit()
             logger.info(f"Image saved to database with ID: {new_image.id}")
             
@@ -198,6 +225,146 @@ def get_image(image_id):
     if image:
         return jsonify(image.to_dict())
     return jsonify({'error': 'Image not found'}), 404
+
+@app.route('/api/locations', methods=['GET'])
+def get_locations():
+    """Get location history, with most recent and most used first"""
+    # Query parameters for filtering
+    favorites_only = request.args.get('favorites', 'false').lower() == 'true'
+    limit = request.args.get('limit', 50, type=int)
+    
+    # Build the query
+    query = LocationHistory.query
+    
+    # Filter by favorites if requested
+    if favorites_only:
+        query = query.filter(LocationHistory.is_favorite == True)
+    
+    # Order by last_used (most recent first) and use_count (most used first)
+    locations = query.order_by(LocationHistory.last_used.desc(), 
+                              LocationHistory.use_count.desc()).limit(limit).all()
+    
+    return jsonify({
+        'locations': [loc.to_dict() for loc in locations]
+    })
+
+@app.route('/api/locations', methods=['POST'])
+def add_or_update_location():
+    """Add a new location to history or update an existing one"""
+    data = request.json
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Basic validation
+    required_fields = ['lat', 'lng', 'location_name']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    try:
+        # Check if location already exists
+        lat = float(data['lat'])
+        lng = float(data['lng'])
+        
+        # Look for existing location with same coordinates
+        location = LocationHistory.query.filter_by(lat=lat, lng=lng).first()
+        
+        if location:
+            # Update existing location
+            location.location_name = data['location_name']
+            location.use_count += 1
+            location.last_used = datetime.utcnow()
+            
+            # Update favorite status if provided
+            if 'is_favorite' in data:
+                location.is_favorite = bool(data['is_favorite'])
+                
+            db.session.commit()
+            logger.info(f"Updated location history: {location.id}")
+            return jsonify({
+                'success': True,
+                'location': location.to_dict(),
+                'message': 'Location updated in history'
+            })
+        else:
+            # Create new location
+            new_location = LocationHistory(
+                lat=lat,
+                lng=lng,
+                location_name=data['location_name'],
+                is_favorite=data.get('is_favorite', False)
+            )
+            
+            db.session.add(new_location)
+            db.session.commit()
+            logger.info(f"Added new location to history: {new_location.id}")
+            return jsonify({
+                'success': True,
+                'location': new_location.to_dict(),
+                'message': 'Location added to history'
+            })
+    
+    except Exception as e:
+        logger.error(f"Error saving location: {str(e)}")
+        return jsonify({'error': f'Error saving location: {str(e)}'}), 500
+
+@app.route('/api/locations/<int:location_id>', methods=['PUT'])
+def update_location(location_id):
+    """Update a specific location"""
+    location = LocationHistory.query.get(location_id)
+    if not location:
+        return jsonify({'error': 'Location not found'}), 404
+    
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    try:
+        # Update fields if provided
+        if 'location_name' in data:
+            location.location_name = data['location_name']
+        
+        if 'is_favorite' in data:
+            location.is_favorite = bool(data['is_favorite'])
+        
+        # Always update last_used when a location is accessed
+        location.last_used = datetime.utcnow()
+        location.use_count += 1
+        
+        db.session.commit()
+        logger.info(f"Updated location: {location_id}")
+        
+        return jsonify({
+            'success': True,
+            'location': location.to_dict(),
+            'message': 'Location updated successfully'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error updating location: {str(e)}")
+        return jsonify({'error': f'Error updating location: {str(e)}'}), 500
+
+@app.route('/api/locations/<int:location_id>', methods=['DELETE'])
+def delete_location(location_id):
+    """Delete a location from history"""
+    location = LocationHistory.query.get(location_id)
+    if not location:
+        return jsonify({'error': 'Location not found'}), 404
+    
+    try:
+        db.session.delete(location)
+        db.session.commit()
+        logger.info(f"Deleted location: {location_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Location deleted successfully'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error deleting location: {str(e)}")
+        return jsonify({'error': f'Error deleting location: {str(e)}'}), 500
 
 @app.errorhandler(413)
 def too_large(e):

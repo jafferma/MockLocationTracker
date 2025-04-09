@@ -92,6 +92,37 @@ header h1 {
     gap: 10px;
 }
 
+.location-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+.location-actions button {
+    padding: 5px 10px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.location-actions button:hover {
+    background: #2980b9;
+}
+
+#save-favorite-btn {
+    background: #f39c12;
+}
+
+#save-favorite-btn:hover {
+    background: #d35400;
+}
+
 /* Upload section styles */
 .upload-section h2 {
     margin-bottom: 10px;
@@ -188,6 +219,129 @@ header h1 {
     margin-top: 15px;
     min-height: 24px;
     text-align: center;
+}
+
+/* Location history styles */
+.history-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    margin-bottom: 30px;
+}
+
+.history-section h2 {
+    margin-bottom: 20px;
+    color: #3498db;
+    text-align: center;
+}
+
+.location-history {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-item {
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 10px;
+    background: #f9f9f9;
+    transition: all 0.2s ease;
+}
+
+.history-item:hover {
+    border-color: #3498db;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.history-item-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 5px;
+}
+
+.history-location {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.history-location i {
+    color: #e74c3c;
+}
+
+.history-meta {
+    display: flex;
+    gap: 10px;
+    font-size: 14px;
+    color: #7f8c8d;
+}
+
+.history-use-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.history-favorite {
+    cursor: pointer;
+}
+
+.history-favorite:hover {
+    color: #f39c12;
+}
+
+.history-favorite .favorite {
+    color: #f39c12;
+}
+
+.history-coordinates {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-bottom: 8px;
+}
+
+.history-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.history-actions button {
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.use-location-btn {
+    background: #3498db;
+    color: white;
+}
+
+.delete-location-btn {
+    background: #e74c3c;
+    color: white;
+}
+
+.empty-history {
+    text-align: center;
+    padding: 30px;
+    color: #95a5a6;
+}
+
+.empty-history i {
+    font-size: 36px;
+    margin-bottom: 10px;
 }
 
 /* Gallery styles */
