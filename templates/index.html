@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoImage - Location Tagging App</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>GeoImage</h1>
+            <p>Search locations and add GPS data to your images</p>
+        </header>
+        
+        <div class="content-container">
+            <div class="map-section">
+                <div class="search-container">
+                    <input type="text" id="location-search" placeholder="Search for a location">
+                    <button id="search-btn"><i class="fas fa-search"></i></button>
+                </div>
+                <div id="map"></div>
+                <div class="coordinates-display">
+                    <span>Selected Location: </span>
+                    <span id="selected-location">None</span>
+                    <div class="coordinates">
+                        <span>Lat: </span><span id="lat-display">--</span>
+                        <span>Lng: </span><span id="lng-display">--</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="upload-section">
+                <h2>Upload Image</h2>
+                <p>Add current location data to your image</p>
+                
+                <div class="upload-area" id="upload-area">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Drag & drop an image or click to browse</p>
+                    <input type="file" id="file-input" accept="image/*">
+                </div>
+                
+                <div class="upload-preview" id="upload-preview">
+                    <img id="preview-image" src="" alt="Preview">
+                    <div class="preview-info">
+                        <p id="preview-filename">filename.jpg</p>
+                        <button id="remove-preview"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+                
+                <button id="upload-btn" disabled>Add Location & Upload</button>
+                <div id="upload-status"></div>
+            </div>
+        </div>
+        
+        <div class="gallery-section">
+            <h2>Your Geotagged Images</h2>
+            <div class="gallery" id="image-gallery">
+                <div class="empty-gallery">
+                    <i class="fas fa-images"></i>
+                    <p>No images yet. Upload some!</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Image Details Modal -->
+        <div id="image-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <div class="modal-image-container">
+                    <img id="modal-image" src="" alt="Geotagged image">
+                </div>
+                <div class="modal-info">
+                    <h3 id="modal-filename">Image Name</h3>
+                    <p><strong>Location:</strong> <span id="modal-location">Location Name</span></p>
+                    <p><strong>Coordinates:</strong> <span id="modal-coordinates">Lat, Lng</span></p>
+                    <p><strong>Date:</strong> <span id="modal-date">Date/Time</span></p>
+                    <div id="modal-map" class="modal-map"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
