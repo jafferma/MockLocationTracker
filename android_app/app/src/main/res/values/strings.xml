@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GeoImage</string>
+    <string name="app_subtitle">Select mock locations and add GPS data to images</string>
+    
+    <!-- Main Activity -->
+    <string name="current_location">Current Location</string>
+    <string name="no_location_selected">No location selected</string>
+    <string name="lat_lng_placeholder">Lat: --, Lng: --</string>
+    <string name="select_location">Select Location</string>
+    <string name="set_as_mock_location">Set as Mock Location</string>
+    <string name="image_options">Image Options</string>
+    <string name="take_photo">Take Photo</string>
+    <string name="select_from_gallery">Select Image from Gallery</string>
+    <string name="view_geotagged_images">View Geotagged Images</string>
+    
+    <!-- Location Selection Activity -->
+    <string name="search_location_hint">Search for a location</string>
+    <string name="search">Search</string>
+    <string name="my_location">My Location</string>
+    <string name="selected_location">Selected Location</string>
+    <string name="tap_on_map_to_select">Tap on the map to select a location</string>
+    <string name="confirm_location">Use This Location</string>
+    
+    <!-- Image Preview Activity -->
+    <string name="image_preview">Image Preview</string>
+    <string name="location_to_add">Location to add to this image</string>
+    <string name="cancel">Cancel</string>
+    <string name="save_with_location">Save with Location</string>
+    
+    <!-- Gallery Activity -->
+    <string name="geotagged_images">Geotagged Images</string>
+    <string name="no_geotagged_images">No geotagged images found</string>
+    <string name="geotagged_image">Geotagged image</string>
+    <string name="gallery">Gallery</string>
+    
+    <!-- Permissions -->
+    <string name="location_permission_needed">Location permission is needed to find your current location</string>
+    <string name="camera_permission_needed">Camera permission is needed to take photos</string>
+    <string name="storage_permission_needed">Storage permission is needed to access your images</string>
+    
+    <!-- Mock Location -->
+    <string name="mock_location_enabled">Mock location enabled at %1$s</string>
+    <string name="mock_location_disabled">Mock location disabled</string>
+    <string name="mock_location_error">Failed to set mock location. Make sure the app is set as mock location provider in developer options.</string>
+    <string name="enable_mock_location_provider">Please enable mock location provider for this app in Developer Options</string>
+    
+    <!-- Image Processing -->
+    <string name="image_saved">Image saved with location data</string>
+    <string name="image_save_error">Failed to save image with location data</string>
+    <string name="processing_image">Processing image…</string>
+    <string name="select_image_first">Please select an image first</string>
+    <string name="select_location_first">Please select a location first</string>
+    
+    <!-- AdMob -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+    <string name="banner_ad_unit_id">ca-app-pub-3940256099942544/6300978111</string>
+    <string name="interstitial_ad_unit_id">ca-app-pub-3940256099942544/1033173712</string>
+    <string name="rewarded_ad_unit_id">ca-app-pub-3940256099942544/5224354917</string>
+    <string name="app_open_ad_unit_id">ca-app-pub-3940256099942544/3419835294</string>
+    <string name="watch_ad_for_reward">Watch Ad</string>
+    <string name="reward_ad_message">Watch a short ad to support the app</string>
+    <string name="reward_received">Thank you for supporting the app!</string>
+</resources>
