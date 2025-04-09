@@ -25,6 +25,10 @@ def add_geotag_to_image(image_path, latitude, longitude, location_name=None):
     Add GPS metadata to an image file
     """
     try:
+        # Check if file path is valid
+        if not image_path or not os.path.exists(image_path):
+            return {'success': False, 'message': f'Invalid file path: {image_path}'}
+            
         # Open the image to ensure it's valid
         img = Image.open(image_path)
         

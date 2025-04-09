@@ -56,6 +56,9 @@ def upload_file():
     except ValueError:
         return jsonify({'error': 'Invalid location data'}), 400
     
+    # Ensure upload directory exists
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    
     # Save the file temporarily
     filename = secure_filename(file.filename)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -63,10 +66,17 @@ def upload_file():
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
     file.save(file_path)
     
+    # Verify file was saved properly
+    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+        return jsonify({'error': 'Failed to save uploaded file'}), 500
+    
     # Add geotag to the image
     try:
         result = add_geotag_to_image(file_path, lat, lng, location_name)
         if not result['success']:
+            # Clean up file if geotagging fails
+            if os.path.exists(file_path):
+                os.remove(file_path)
             return jsonify({'error': result['message']}), 500
             
         # Create image record
@@ -99,7 +109,7 @@ def upload_file():
         # Clean up file if geotagging fails
         if os.path.exists(file_path):
             os.remove(file_path)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 @app.route('/api/images', methods=['GET'])
 def get_images():
