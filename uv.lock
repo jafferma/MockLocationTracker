@@ -313,6 +313,7 @@ dependencies = [
     { name = "flask-sqlalchemy" },
     { name = "pillow" },
     { name = "psycopg2-binary" },
+    { name = "sqlalchemy" },
     { name = "werkzeug" },
 ]
 
@@ -323,6 +324,7 @@ requires-dist = [
     { name = "flask-sqlalchemy", specifier = ">=3.1.1" },
     { name = "pillow", specifier = ">=11.1.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
+    { name = "sqlalchemy", specifier = ">=2.0.40" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
 
